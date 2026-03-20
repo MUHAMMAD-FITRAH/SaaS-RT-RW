@@ -1,0 +1,767 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== MULTI-TENANCY & AUTH ====================
+
+model Tenant {
+  id         String   @id @default(cuid())
+  name       String
+  slug       String   @unique
+  rtNumber   String
+  rwNumber   String
+  kelurahan  String?
+  kecamatan  String?
+  kota       String?
+  provinsi   String?
+  address    String?
+  phone      String?
+  email      String?
+  logo       String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  subscription    Subscription?
+  users           User[]
+  rumah           Rumah[]
+  warga           Warga[]
+  keluarga        Keluarga[]
+  tamu            Tamu[]
+  kendaraan       Kendaraan[]
+  surat           Surat[]
+  kasTransactions KasTransaction[]
+  iuranTypes      IuranType[]
+  iuranPayments   IuranPayment[]
+  agenda          Agenda[]
+  berita          Berita[]
+  bansos          Bansos[]
+  bansosRecipients BansosRecipient[]
+  siskamling      Siskamling[]
+  keluhan         Keluhan[]
+  inventaris      Inventaris[]
+  organisasi      Organisasi[]
+  usahaWarga      UsahaWarga[]
+  pembangunan     Pembangunan[]
+  posSecurityLogs PosSecurityLog[]
+  tataTertib      TataTertib[]
+  programKerja    ProgramKerja[]
+  berkas          Berkas[]
+  covid19Data     Covid19Data[]
+  vaksinasiData   VaksinasiData[]
+
+  @@index([slug])
+}
+
+enum SubscriptionTier {
+  TIER_A
+  TIER_B
+  TIER_C
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  tenantId             String             @unique
+  tier                 SubscriptionTier   @default(TIER_A)
+  status               SubscriptionStatus @default(TRIALING)
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  stripePriceId        String?
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  trialEndsAt          DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  RT_ADMIN
+  RT_STAFF
+  RESIDENT
+}
+
+model User {
+  id            String    @id @default(cuid())
+  tenantId      String?
+  email         String    @unique
+  emailVerified DateTime?
+  password      String
+  name          String
+  phone         String?
+  avatar        String?
+  role          UserRole  @default(RESIDENT)
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warga  Warga?  @relation("UserWarga")
+
+  @@index([tenantId])
+  @@index([email])
+}
+
+// ==================== RESIDENTIAL DATA ====================
+
+enum StatusHuni {
+  DIHUNI
+  TIDAK_DIHUNI
+  DISEWAKAN
+}
+
+enum StatusMilik {
+  MILIK_SENDIRI
+  SEWA
+  KONTRAK
+  LAINNYA
+}
+
+model Rumah {
+  id           String      @id @default(cuid())
+  tenantId     String
+  nomorRumah   String
+  blok         String?
+  alamat       String
+  rt           String?
+  rw           String?
+  statusHuni   StatusHuni  @default(DIHUNI)
+  statusMilik  StatusMilik @default(MILIK_SENDIRI)
+  luasTanah    Float?
+  luasBangunan Float?
+  latitude     Float?
+  longitude    Float?
+  foto         String?
+  catatan      String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  keluarga Keluarga[]
+  kendaraan Kendaraan[]
+
+  @@unique([tenantId, nomorRumah, blok])
+  @@index([tenantId])
+}
+
+model Keluarga {
+  id             String   @id @default(cuid())
+  tenantId       String
+  rumahId        String
+  nomorKK        String
+  kepalaKeluarga String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rumah   Rumah   @relation(fields: [rumahId], references: [id])
+  anggota Warga[]
+
+  @@unique([tenantId, nomorKK])
+  @@index([tenantId])
+}
+
+enum JenisKelamin {
+  LAKI_LAKI
+  PEREMPUAN
+}
+
+enum Agama {
+  ISLAM
+  KRISTEN
+  KATOLIK
+  HINDU
+  BUDDHA
+  KONGHUCU
+  LAINNYA
+}
+
+enum StatusPerkawinan {
+  BELUM_KAWIN
+  KAWIN
+  CERAI_HIDUP
+  CERAI_MATI
+}
+
+enum StatusTinggal {
+  TETAP
+  KONTRAK
+  KOST
+  LAINNYA
+}
+
+enum StatusAktifWarga {
+  AKTIF
+  PINDAH
+  MENINGGAL
+  TIDAK_AKTIF
+}
+
+model Warga {
+  id                  String            @id @default(cuid())
+  tenantId            String
+  keluargaId          String?
+  userId              String?           @unique
+  nik                 String
+  namaLengkap         String
+  tempatLahir         String?
+  tanggalLahir        DateTime?
+  jenisKelamin        JenisKelamin?
+  golonganDarah       String?
+  agama               Agama?
+  statusPerkawinan    StatusPerkawinan?
+  pekerjaan           String?
+  pendidikan          String?
+  kewarganegaraan     String?           @default("WNI")
+  nomorHP             String?
+  email               String?
+  foto                String?
+  statusTinggal       StatusTinggal     @default(TETAP)
+  statusAktif         StatusAktifWarga  @default(AKTIF)
+  tanggalMasuk        DateTime?
+  tanggalKeluar       DateTime?
+  alamatPindah        String?
+  keteranganPindah    String?
+  tanggalMeninggal    DateTime?
+  keteranganMeninggal String?
+  isPemilih           Boolean           @default(false)
+  catatan             String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  keluarga         Keluarga?         @relation(fields: [keluargaId], references: [id])
+  user             User?             @relation("UserWarga", fields: [userId], references: [id])
+  iuranPayments    IuranPayment[]
+  bansosRecipients BansosRecipient[]
+  suratList        Surat[]           @relation("SuratWarga")
+  vaksinasi        VaksinasiData[]
+
+  @@unique([tenantId, nik])
+  @@index([tenantId])
+  @@index([tenantId, statusAktif])
+}
+
+model Tamu {
+  id              String    @id @default(cuid())
+  tenantId        String
+  namaLengkap     String
+  nik             String?
+  alamatAsal      String
+  tujuan          String
+  wargaDikunjungi String
+  nomorHP         String?
+  nomorKendaraan  String?
+  foto            String?
+  waktuDatang     DateTime  @default(now())
+  waktuPulang     DateTime?
+  catatan         String?
+  createdAt       DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, waktuDatang])
+}
+
+enum JenisKendaraan {
+  MOTOR
+  MOBIL
+  SEPEDA
+  LAINNYA
+}
+
+model Kendaraan {
+  id             String         @id @default(cuid())
+  tenantId       String
+  rumahId        String?
+  pemilik        String
+  jenisKendaraan JenisKendaraan
+  merek          String?
+  nomorPolisi    String
+  warna          String?
+  tahun          Int?
+  stnkBerlaku    DateTime?
+  foto           String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rumah  Rumah? @relation(fields: [rumahId], references: [id])
+
+  @@index([tenantId])
+}
+
+// ==================== CORRESPONDENCE ====================
+
+enum JenisSurat {
+  SURAT_PENGANTAR
+  SURAT_KETERANGAN
+  SURAT_DOMISILI
+  SURAT_TIDAK_MAMPU
+  SURAT_KEMATIAN
+  SURAT_KELAHIRAN
+  SURAT_PINDAH
+  SURAT_USAHA
+  LAINNYA
+}
+
+enum StatusSurat {
+  DIAJUKAN
+  DIPROSES
+  DISETUJUI
+  DITOLAK
+}
+
+model Surat {
+  id               String      @id @default(cuid())
+  tenantId         String
+  wargaId          String?
+  nomorSurat       String
+  jenisSurat       JenisSurat
+  perihal          String
+  isiSurat         String?
+  status           StatusSurat @default(DIAJUKAN)
+  tanggalSurat     DateTime    @default(now())
+  tanggalDisetujui DateTime?
+  disetujuiOleh    String?
+  tandaTangan      String?
+  catatan          String?
+  fileUrl          String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warga  Warga? @relation("SuratWarga", fields: [wargaId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, jenisSurat])
+}
+
+// ==================== FINANCE ====================
+
+enum JenisKas {
+  MASUK
+  KELUAR
+}
+
+model KasTransaction {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tanggal    DateTime @default(now())
+  jenis      JenisKas
+  kategori   String
+  keterangan String
+  jumlah     Decimal  @db.Decimal(15, 2)
+  buktiUrl   String?
+  pencatat   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, tanggal])
+  @@index([tenantId, jenis])
+}
+
+enum PeriodeIuran {
+  BULANAN
+  TAHUNAN
+  INSIDENTAL
+}
+
+model IuranType {
+  id        String       @id @default(cuid())
+  tenantId  String
+  nama      String
+  jumlah    Decimal      @db.Decimal(15, 2)
+  periode   PeriodeIuran @default(BULANAN)
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payments IuranPayment[]
+
+  @@unique([tenantId, nama])
+  @@index([tenantId])
+}
+
+enum MetodeBayar {
+  TUNAI
+  TRANSFER
+  EWALLET
+  LAINNYA
+}
+
+model IuranPayment {
+  id          String       @id @default(cuid())
+  tenantId    String
+  iuranTypeId String
+  wargaId     String
+  bulan       Int
+  tahun       Int
+  jumlah      Decimal      @db.Decimal(15, 2)
+  tanggalBayar DateTime?
+  metodeBayar  MetodeBayar?
+  buktiUrl    String?
+  pencatat    String?
+  catatan     String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  iuranType IuranType @relation(fields: [iuranTypeId], references: [id])
+  warga     Warga     @relation(fields: [wargaId], references: [id])
+
+  @@unique([tenantId, iuranTypeId, wargaId, bulan, tahun])
+  @@index([tenantId])
+  @@index([tenantId, tahun, bulan])
+}
+
+// ==================== COMMUNITY FEATURES ====================
+
+model Agenda {
+  id             String    @id @default(cuid())
+  tenantId       String
+  judul          String
+  deskripsi      String?
+  tanggalMulai   DateTime
+  tanggalSelesai DateTime?
+  lokasi         String?
+  foto           String[]
+  isPublished    Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model Berita {
+  id          String    @id @default(cuid())
+  tenantId    String
+  judul       String
+  slug        String
+  konten      String
+  ringkasan   String?
+  gambar      String?
+  penulis     String
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+}
+
+enum StatusBansos {
+  AKTIF
+  SELESAI
+  DIBATALKAN
+}
+
+model Bansos {
+  id             String       @id @default(cuid())
+  tenantId       String
+  nama           String
+  sumber         String
+  deskripsi      String?
+  tanggalMulai   DateTime
+  tanggalSelesai DateTime?
+  status         StatusBansos @default(AKTIF)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  recipients BansosRecipient[]
+
+  @@index([tenantId])
+}
+
+model BansosRecipient {
+  id            String    @id @default(cuid())
+  tenantId      String
+  bansosId      String
+  wargaId       String
+  tanggalTerima DateTime?
+  jumlah        String?
+  catatan       String?
+  createdAt     DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bansos Bansos @relation(fields: [bansosId], references: [id], onDelete: Cascade)
+  warga  Warga  @relation(fields: [wargaId], references: [id])
+
+  @@unique([bansosId, wargaId])
+  @@index([tenantId])
+}
+
+model Siskamling {
+  id       String   @id @default(cuid())
+  tenantId String
+  tanggal  DateTime
+  shift    String?
+  petugas  String[]
+  lokasi   String?
+  catatan  String?
+  kejadian String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, tanggal])
+}
+
+enum StatusKeluhan {
+  BARU
+  DIPROSES
+  SELESAI
+  DITOLAK
+}
+
+model Keluhan {
+  id             String        @id @default(cuid())
+  tenantId       String
+  pengirim       String
+  email          String?
+  kategori       String
+  judul          String
+  isi            String
+  status         StatusKeluhan @default(BARU)
+  tanggapan      String?
+  tanggalTanggap DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model Inventaris {
+  id               String    @id @default(cuid())
+  tenantId         String
+  namaBarang       String
+  kategori         String?
+  jumlah           Int       @default(1)
+  kondisi          String?
+  lokasi           String?
+  tanggalPerolehan DateTime?
+  nilaiPerolehan   Decimal?  @db.Decimal(15, 2)
+  catatan          String?
+  foto             String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model Organisasi {
+  id       String   @id @default(cuid())
+  tenantId String
+  nama     String
+  jabatan  String
+  urutan   Int      @default(0)
+  foto     String?
+  nomorHP  String?
+  periode  String?
+  isActive Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+// ==================== TIER B+ FEATURES ====================
+
+model UsahaWarga {
+  id        String   @id @default(cuid())
+  tenantId  String
+  namaUsaha String
+  pemilik   String
+  jenis     String
+  alamat    String?
+  nomorHP   String?
+  deskripsi String?
+  foto      String?
+  isActive  Boolean  @default(true)
+  products  Product[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  usahaWargaId String
+  nama         String
+  deskripsi    String?
+  harga        Decimal  @db.Decimal(15, 2)
+  foto         String?
+  isAvailable  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  usahaWarga UsahaWarga @relation(fields: [usahaWargaId], references: [id], onDelete: Cascade)
+}
+
+enum StatusPembangunan {
+  DIUSULKAN
+  DISETUJUI
+  DALAM_PROSES
+  SELESAI
+  DITOLAK
+}
+
+model Pembangunan {
+  id            String            @id @default(cuid())
+  tenantId      String
+  judul         String
+  deskripsi     String?
+  pengusul      String
+  estimasiBiaya Decimal?          @db.Decimal(15, 2)
+  lokasi        String?
+  status        StatusPembangunan @default(DIUSULKAN)
+  catatan       String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+// ==================== TIER C ONLY ====================
+
+model PosSecurityLog {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tanggal         DateTime @default(now())
+  petugas         String
+  shift           String?
+  kejadian        String?
+  tamuMasuk       Int      @default(0)
+  tamuKeluar      Int      @default(0)
+  kendaraanMasuk  Int      @default(0)
+  kendaraanKeluar Int      @default(0)
+  catatan         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, tanggal])
+}
+
+// ==================== MISC ====================
+
+model TataTertib {
+  id       String   @id @default(cuid())
+  tenantId String
+  judul    String
+  isi      String
+  urutan   Int      @default(0)
+  isActive Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model ProgramKerja {
+  id        String   @id @default(cuid())
+  tenantId  String
+  judul     String
+  deskripsi String?
+  tahun     Int
+  status    String   @default("RENCANA")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model Berkas {
+  id         String   @id @default(cuid())
+  tenantId   String
+  nama       String
+  kategori   String?
+  fileUrl    String
+  fileSize   Int?
+  mimeType   String?
+  uploadedBy String
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model Covid19Data {
+  id       String   @id @default(cuid())
+  tenantId String
+  wargaId  String?
+  nama     String
+  status   String
+  tanggal  DateTime
+  catatan  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model VaksinasiData {
+  id          String   @id @default(cuid())
+  tenantId    String
+  wargaId     String
+  dosis       Int
+  jenisVaksin String
+  tanggal     DateTime
+  lokasi      String?
+  catatan     String?
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warga  Warga  @relation(fields: [wargaId], references: [id])
+
+  @@index([tenantId])
+}
