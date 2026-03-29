@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { canAccess, Feature, getTierLabel } from "@/lib/features";
-import { SubscriptionTier } from "@prisma/client";
+import { getRoleLabel } from "@/lib/permissions";
+import { SubscriptionTier, UserRole } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import {
   LayoutDashboard,
@@ -32,6 +33,10 @@ import {
   CreditCard,
   Lock,
   X,
+  Server,
+  Eye,
+  FileBarChart,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -40,9 +45,16 @@ interface NavItem {
   href: string;
   icon: LucideIcon;
   feature?: Feature;
+  roles?: UserRole[]; // If set, only these roles can see this item
 }
 
-const navSections: { title: string; items: NavItem[] }[] = [
+interface NavSection {
+  title: string;
+  items: NavItem[];
+  roles?: UserRole[]; // If set, only these roles can see this section
+}
+
+const navSections: NavSection[] = [
   {
     title: "Utama",
     items: [
@@ -51,6 +63,7 @@ const navSections: { title: string; items: NavItem[] }[] = [
   },
   {
     title: "Pendataan",
+    roles: [UserRole.SUPER_ADMIN, UserRole.RT_ADMIN, UserRole.RW_ADMIN],
     items: [
       { label: "Data Warga", href: "/warga", icon: Users },
       { label: "Data Rumah", href: "/rumah", icon: Home },
@@ -61,6 +74,7 @@ const navSections: { title: string; items: NavItem[] }[] = [
   },
   {
     title: "Administrasi",
+    roles: [UserRole.SUPER_ADMIN, UserRole.RT_ADMIN, UserRole.RW_ADMIN],
     items: [
       { label: "Surat", href: "/surat", icon: FileText, feature: Feature.SURAT_KETERANGAN },
       { label: "Organisasi", href: "/organisasi", icon: Building2, feature: Feature.STRUKTUR_ORGANISASI },
@@ -69,6 +83,7 @@ const navSections: { title: string; items: NavItem[] }[] = [
   },
   {
     title: "Keuangan",
+    roles: [UserRole.SUPER_ADMIN, UserRole.RT_ADMIN, UserRole.RW_ADMIN],
     items: [
       { label: "Kas RT", href: "/keuangan/kas", icon: Wallet, feature: Feature.KAS_RT },
       { label: "Iuran", href: "/keuangan/iuran", icon: Receipt, feature: Feature.IURAN_BULANAN },
@@ -77,6 +92,7 @@ const navSections: { title: string; items: NavItem[] }[] = [
   },
   {
     title: "Komunitas",
+    roles: [UserRole.SUPER_ADMIN, UserRole.RT_ADMIN, UserRole.RW_ADMIN],
     items: [
       { label: "Agenda", href: "/agenda", icon: Calendar, feature: Feature.AGENDA },
       { label: "Berita", href: "/berita", icon: Newspaper, feature: Feature.BERITA },
@@ -87,14 +103,50 @@ const navSections: { title: string; items: NavItem[] }[] = [
   },
   {
     title: "Premium",
+    roles: [UserRole.SUPER_ADMIN, UserRole.RT_ADMIN],
     items: [
       { label: "Usaha Warga", href: "/usaha-warga", icon: Store, feature: Feature.USAHA_WARGA },
       { label: "Pembangunan", href: "/pembangunan", icon: HardHat, feature: Feature.PEMBANGUNAN },
       { label: "Pos Security", href: "/pos-security", icon: ShieldCheck, feature: Feature.POS_SECURITY },
     ],
   },
+  // Warga-only section
+  {
+    title: "Layanan Saya",
+    roles: [UserRole.RESIDENT],
+    items: [
+      { label: "Data Saya", href: "/profil-saya", icon: Users },
+      { label: "Ajukan Surat", href: "/surat-saya", icon: FileText },
+      { label: "Iuran Saya", href: "/iuran-saya", icon: Receipt },
+      { label: "Keluhan", href: "/keluhan", icon: MessageSquare },
+      { label: "Agenda", href: "/agenda", icon: Calendar },
+      { label: "Berita", href: "/berita", icon: Newspaper },
+    ],
+  },
+  // RW/Lurah oversight section
+  {
+    title: "Laporan & Pengawasan",
+    roles: [UserRole.RW_ADMIN],
+    items: [
+      { label: "Rekap Warga", href: "/laporan/warga", icon: FileBarChart },
+      { label: "Rekap Keuangan", href: "/laporan/keuangan", icon: BarChart3 },
+      { label: "Persetujuan Surat", href: "/laporan/surat", icon: ClipboardList },
+      { label: "Monitoring RT", href: "/laporan/monitoring", icon: Eye },
+    ],
+  },
+  // Server admin section
+  {
+    title: "Server",
+    roles: [UserRole.SUPER_ADMIN],
+    items: [
+      { label: "Kelola Tenant", href: "/admin/tenants", icon: Server },
+      { label: "Semua User", href: "/admin/users", icon: Users },
+      { label: "Langganan", href: "/admin/subscriptions", icon: CreditCard },
+    ],
+  },
   {
     title: "Pengaturan",
+    roles: [UserRole.SUPER_ADMIN, UserRole.RT_ADMIN],
     items: [
       { label: "Pengaturan", href: "/pengaturan/profil", icon: Settings },
       { label: "Langganan", href: "/pengaturan/langganan", icon: CreditCard },
@@ -111,6 +163,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const tier = (session?.user?.tier as SubscriptionTier) ?? "TIER_A";
+  const role = (session?.user?.role as UserRole) ?? "RESIDENT";
+
+  // Filter sections based on role
+  const visibleSections = navSections.filter((section) => {
+    if (!section.roles) return true;
+    return section.roles.includes(role);
+  });
 
   return (
     <>
@@ -139,28 +198,46 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           </button>
         </div>
 
-        {/* Tier badge */}
-        <div className="px-4 py-3 border-b">
-          <Badge
-            variant={tier === "TIER_C" ? "default" : tier === "TIER_B" ? "secondary" : "outline"}
-          >
-            Paket {getTierLabel(tier)}
-          </Badge>
+        {/* Role & Tier badge */}
+        <div className="px-4 py-3 border-b space-y-1">
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={
+                role === "SUPER_ADMIN" ? "destructive" :
+                role === "RW_ADMIN" ? "default" :
+                role === "RT_ADMIN" ? "secondary" : "outline"
+              }
+              className="text-xs"
+            >
+              {getRoleLabel(role)}
+            </Badge>
+          </div>
+          {(role === "RT_ADMIN" || role === "SUPER_ADMIN") && (
+            <Badge
+              variant={tier === "TIER_C" ? "default" : tier === "TIER_B" ? "secondary" : "outline"}
+              className="text-xs"
+            >
+              Paket {getTierLabel(tier)}
+            </Badge>
+          )}
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
-          {navSections.map((section) => (
+          {visibleSections.map((section) => (
             <div key={section.title}>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">
                 {section.title}
               </p>
               <div className="space-y-1">
                 {section.items.map((item) => {
+                  // Check role access for individual items
+                  if (item.roles && !item.roles.includes(role)) return null;
+
                   const hasAccess = item.feature
                     ? canAccess(item.feature, tier)
                     : true;
-                  const isActive = pathname === item.href;
+                  const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
 
                   return (
                     <Link

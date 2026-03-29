@@ -1,7 +1,10 @@
 import { UserRole } from "@prisma/client";
 
 export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
+  // 1. Admin Server (Back Office / Developer) - Full platform access
   SUPER_ADMIN: ["*"],
+
+  // 2. Admin Back Office (RT / Pengelola) - Full RT management
   RT_ADMIN: [
     "tenant:read", "tenant:update",
     "warga:*", "rumah:*", "keluarga:*", "tamu:*", "kendaraan:*",
@@ -10,21 +13,31 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     "keluhan:*", "inventaris:*", "organisasi:*",
     "user:manage", "subscription:manage",
   ],
-  RT_STAFF: [
+
+  // 3. Admin Back Office (RW / Lurah) - Oversight across RTs, approvals, reports
+  RW_ADMIN: [
     "tenant:read",
-    "warga:read", "warga:create", "warga:update",
-    "rumah:read", "keluarga:read", "tamu:*", "kendaraan:read",
-    "surat:read", "surat:create",
-    "keuangan:read", "keuangan:create",
-    "iuran:read", "iuran:create",
+    "warga:read", "rumah:read", "keluarga:read",
+    "tamu:read", "kendaraan:read",
+    "surat:read", "surat:approve",
+    "keuangan:read",
+    "iuran:read",
     "agenda:read", "berita:read",
-    "siskamling:*", "keluhan:read",
+    "bansos:read", "bansos:approve",
+    "siskamling:read",
+    "keluhan:read", "keluhan:respond",
+    "inventaris:read",
+    "organisasi:read",
+    "pembangunan:read", "pembangunan:approve",
+    "laporan:*",
   ],
+
+  // 4. User (Warga / Installer Apps) - Own data only
   RESIDENT: [
     "tenant:read",
     "warga:read:self",
     "surat:create:self", "surat:read:self",
-    "iuran:read:self",
+    "iuran:read:self", "iuran:pay:self",
     "agenda:read", "berita:read",
     "keluhan:create", "keluhan:read:self",
   ],
@@ -51,10 +64,28 @@ export function hasPermission(
 
 export function getRoleLabel(role: UserRole): string {
   const labels: Record<UserRole, string> = {
-    SUPER_ADMIN: "Super Admin",
-    RT_ADMIN: "Ketua RT",
-    RT_STAFF: "Pengurus RT",
+    SUPER_ADMIN: "Admin Server",
+    RT_ADMIN: "Admin RT",
+    RW_ADMIN: "Admin RW/Lurah",
     RESIDENT: "Warga",
   };
   return labels[role];
 }
+
+export function getRoleDescription(role: UserRole): string {
+  const descriptions: Record<UserRole, string> = {
+    SUPER_ADMIN: "Back Office Developer - Kelola seluruh platform",
+    RT_ADMIN: "Back Office RT/Pengelola - Kelola data & operasional RT",
+    RW_ADMIN: "Back Office RW/Lurah - Pengawasan & persetujuan lintas RT",
+    RESIDENT: "Warga/Pengguna - Akses data pribadi & layanan",
+  };
+  return descriptions[role];
+}
+
+// Define which sidebar sections each role can see
+export const ROLE_MENU_ACCESS: Record<UserRole, string[]> = {
+  SUPER_ADMIN: ["Utama", "Pendataan", "Administrasi", "Keuangan", "Komunitas", "Premium", "Pengaturan", "Server"],
+  RT_ADMIN: ["Utama", "Pendataan", "Administrasi", "Keuangan", "Komunitas", "Premium", "Pengaturan"],
+  RW_ADMIN: ["Utama", "Pendataan", "Administrasi", "Keuangan", "Komunitas", "Laporan"],
+  RESIDENT: ["Utama", "Layanan"],
+};

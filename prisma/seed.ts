@@ -42,7 +42,20 @@ async function main() {
     },
   });
 
-  // Create users
+  // ==================== CREATE USERS (4 ROLES) ====================
+
+  // 1. SUPER_ADMIN - Admin Server (Back Office / Developer)
+  await prisma.user.create({
+    data: {
+      email: "superadmin@rt-online.id",
+      password: hashedPassword,
+      name: "Developer Admin",
+      role: "SUPER_ADMIN",
+      phone: "081200000001",
+    },
+  });
+
+  // 2. RT_ADMIN - Admin Back Office (RT / Pengelola)
   const adminUser = await prisma.user.create({
     data: {
       tenantId: tenant.id,
@@ -54,23 +67,27 @@ async function main() {
     },
   });
 
+  // 3. RW_ADMIN - Admin Back Office (RW / Lurah)
   await prisma.user.create({
     data: {
       tenantId: tenant.id,
-      email: "sekretaris@rt-online.id",
+      email: "rw@rt-online.id",
       password: hashedPassword,
-      name: "Siti Rahmawati",
-      role: "RT_STAFF",
+      name: "Haji Mahmud",
+      role: "RW_ADMIN",
       phone: "081234567891",
     },
   });
 
-  await prisma.user.create({
+  // 4. RESIDENT - User (Warga / Installer Apps)
+  const residentUser = await prisma.user.create({
     data: {
-      email: "superadmin@rt-online.id",
+      tenantId: tenant.id,
+      email: "warga@rt-online.id",
       password: hashedPassword,
-      name: "Super Admin",
-      role: "SUPER_ADMIN",
+      name: "Ahmad Hidayat",
+      role: "RESIDENT",
+      phone: "081234567892",
     },
   });
 
@@ -134,6 +151,8 @@ async function main() {
         data: {
           tenantId: tenant.id,
           keluargaId: keluarga.id,
+          // Link first warga (Ahmad Hidayat) to the RESIDENT user
+          userId: i === 0 && j === 0 ? residentUser.id : undefined,
           nik,
           namaLengkap: family.anggota[j],
           tempatLahir: "Depok",
@@ -236,7 +255,7 @@ async function main() {
   // Create organisasi
   const pengurus = [
     { nama: "Budi Santoso", jabatan: "Ketua RT", urutan: 1 },
-    { nama: "Siti Rahmawati", jabatan: "Sekretaris", urutan: 2 },
+    { nama: "Haji Mahmud", jabatan: "Ketua RW", urutan: 2 },
     { nama: "Ahmad Hidayat", jabatan: "Bendahara", urutan: 3 },
     { nama: "Bambang Purnomo", jabatan: "Sie. Keamanan", urutan: 4 },
     { nama: "Candra Wijaya", jabatan: "Sie. Kebersihan", urutan: 5 },
@@ -250,10 +269,11 @@ async function main() {
 
   console.log("Seed completed!");
   console.log("---");
-  console.log("Demo accounts:");
-  console.log("  Admin:       admin@rt-online.id / password123");
-  console.log("  Staff:       sekretaris@rt-online.id / password123");
-  console.log("  SuperAdmin:  superadmin@rt-online.id / password123");
+  console.log("Demo accounts (password: password123):");
+  console.log("  1. Admin Server (Developer):     superadmin@rt-online.id");
+  console.log("  2. Admin RT (Pengelola):          admin@rt-online.id");
+  console.log("  3. Admin RW/Lurah:                rw@rt-online.id");
+  console.log("  4. Warga (User):                  warga@rt-online.id");
 }
 
 main()

@@ -92,7 +92,7 @@ model Subscription {
 enum UserRole {
   SUPER_ADMIN
   RT_ADMIN
-  RT_STAFF
+  RW_ADMIN
   RESIDENT
 }
 
