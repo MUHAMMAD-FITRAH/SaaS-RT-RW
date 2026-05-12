@@ -9,7 +9,7 @@ import {
 } from "@/server/middleware/api-utils";
 
 // Harga paket iklan (IDR)
-export const IKLAN_PAKET = {
+const IKLAN_PAKET = {
   7:  10_000,
   14: 18_000,
   30: 30_000,
