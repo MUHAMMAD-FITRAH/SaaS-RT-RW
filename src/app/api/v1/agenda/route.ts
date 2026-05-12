@@ -7,17 +7,22 @@ import {
   paginatedResponse,
   handleApiError,
   getPaginationParams,
+  resolveTenantId,
 } from "@/server/middleware/api-utils";
 
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth();
     const tenantId = session.user.tenantId;
-    if (!tenantId) return errorResponse("Tenant not found", 400);
+    if (!tenantId && session.user.role !== "SUPER_ADMIN") return errorResponse("Tenant not found", 400);
 
     const { page, limit, skip, search } = getPaginationParams(req);
 
-    const where: Record<string, unknown> = { tenantId };
+    const isAdmin = ["RT_ADMIN", "RW_ADMIN", "SUPER_ADMIN"].includes(session.user.role);
+
+    const where: Record<string, unknown> = tenantId ? { tenantId } : {};
+    // Non-admin (warga) only sees published agenda
+    if (!isAdmin) where.isPublished = true;
     if (search) {
       where.OR = [
         { judul: { contains: search, mode: "insensitive" } },
@@ -43,10 +48,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth();
-    const tenantId = session.user.tenantId;
-    if (!tenantId) return errorResponse("Tenant not found", 400);
-
     const body = await req.json();
+    const tenantId = await resolveTenantId(session, body.tenantId);
+    if (!tenantId) return errorResponse("Tenant not found", 400);
 
     if (!body.judul || !body.tanggalMulai) {
       return errorResponse("Judul dan tanggal mulai wajib diisi", 422);

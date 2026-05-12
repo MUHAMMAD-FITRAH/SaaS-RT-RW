@@ -7,19 +7,20 @@ import {
   paginatedResponse,
   handleApiError,
   getPaginationParams,
+  resolveTenantId,
 } from "@/server/middleware/api-utils";
 
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth();
     const tenantId = session.user.tenantId;
-    if (!tenantId) return errorResponse("Tenant not found", 400);
+    if (!tenantId && session.user.role !== "SUPER_ADMIN") return errorResponse("Tenant not found", 400);
 
     const { page, limit, skip, search } = getPaginationParams(req);
     const url = new URL(req.url);
     const status = url.searchParams.get("status") || undefined;
 
-    const where: Record<string, unknown> = { tenantId };
+    const where: Record<string, unknown> = tenantId ? { tenantId } : {};
     if (status) where.status = status;
     if (search) {
       where.OR = [
@@ -52,10 +53,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth();
-    const tenantId = session.user.tenantId;
-    if (!tenantId) return errorResponse("Tenant not found", 400);
-
     const body = await req.json();
+    const tenantId = await resolveTenantId(session, body.tenantId);
+    if (!tenantId) return errorResponse("Tenant not found", 400);
 
     if (!body.nama || !body.sumber || !body.tanggalMulai) {
       return errorResponse("Nama, sumber, dan tanggal mulai wajib diisi", 422);

@@ -37,6 +37,10 @@ import {
   Eye,
   FileBarChart,
   ClipboardList,
+  Banknote,
+  Inbox,
+  ShoppingBag,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 
@@ -77,6 +81,7 @@ const navSections: NavSection[] = [
     roles: [UserRole.SUPER_ADMIN, UserRole.RT_ADMIN, UserRole.RW_ADMIN],
     items: [
       { label: "Surat", href: "/surat", icon: FileText, feature: Feature.SURAT_KETERANGAN },
+      { label: "Pengajuan", href: "/pengajuan", icon: Inbox },
       { label: "Organisasi", href: "/organisasi", icon: Building2, feature: Feature.STRUKTUR_ORGANISASI },
       { label: "Inventaris", href: "/inventaris", icon: Package, feature: Feature.BARANG_INVENTARIS },
     ],
@@ -110,6 +115,19 @@ const navSections: NavSection[] = [
       { label: "Pos Security", href: "/pos-security", icon: ShieldCheck, feature: Feature.POS_SECURITY },
     ],
   },
+  // Layanan Digital — visible to all roles
+  {
+    title: "Layanan Digital",
+    items: [
+      { label: "Marketplace", href: "/marketplace", icon: ShoppingBag },
+      {
+        label: "PPOB",
+        href: "/ppob",
+        icon: Zap,
+        roles: [UserRole.SUPER_ADMIN, UserRole.RT_ADMIN, UserRole.RESIDENT],
+      },
+    ],
+  },
   // Warga-only section
   {
     title: "Layanan Saya",
@@ -117,7 +135,9 @@ const navSections: NavSection[] = [
     items: [
       { label: "Data Saya", href: "/profil-saya", icon: Users },
       { label: "Ajukan Surat", href: "/surat-saya", icon: FileText },
+      { label: "Pengajuan", href: "/pengajuan", icon: Inbox },
       { label: "Iuran Saya", href: "/iuran-saya", icon: Receipt },
+      { label: "Transparansi Keuangan", href: "/keuangan/transparansi", icon: BarChart3 },
       { label: "Keluhan", href: "/keluhan", icon: MessageSquare },
       { label: "Agenda", href: "/agenda", icon: Calendar },
       { label: "Berita", href: "/berita", icon: Newspaper },
@@ -139,9 +159,10 @@ const navSections: NavSection[] = [
     title: "Server",
     roles: [UserRole.SUPER_ADMIN],
     items: [
-      { label: "Kelola Tenant", href: "/admin/tenants", icon: Server },
-      { label: "Semua User", href: "/admin/users", icon: Users },
-      { label: "Langganan", href: "/admin/subscriptions", icon: CreditCard },
+      { label: "Kelola Tenant",          href: "/admin/tenants",       icon: Server },
+      { label: "Semua User",             href: "/admin/users",          icon: Users },
+      { label: "Langganan",              href: "/admin/subscriptions",  icon: CreditCard },
+      { label: "Manajemen Pembayaran",   href: "/admin/payments",       icon: Banknote },
     ],
   },
   {
@@ -188,7 +209,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         )}
       >
         {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-4 border-b">
+        <div className="h-14 lg:h-16 flex items-center justify-between px-4 border-b">
           <Link href="/dashboard" className="flex items-center gap-2">
             <Shield className="h-7 w-7 text-primary" />
             <span className="font-bold text-lg">RT Online</span>
@@ -212,14 +233,18 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               {getRoleLabel(role)}
             </Badge>
           </div>
-          {(role === "RT_ADMIN" || role === "SUPER_ADMIN") && (
+          {role === "SUPER_ADMIN" ? (
+            <Badge variant="destructive" className="text-xs">
+              Full Access (A, B, C)
+            </Badge>
+          ) : role === "RT_ADMIN" ? (
             <Badge
               variant={tier === "TIER_C" ? "default" : tier === "TIER_B" ? "secondary" : "outline"}
               className="text-xs"
             >
               Paket {getTierLabel(tier)}
             </Badge>
-          )}
+          ) : null}
         </div>
 
         {/* Navigation */}
@@ -234,7 +259,9 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                   // Check role access for individual items
                   if (item.roles && !item.roles.includes(role)) return null;
 
-                  const hasAccess = item.feature
+                  const hasAccess = role === "SUPER_ADMIN"
+                    ? true
+                    : item.feature
                     ? canAccess(item.feature, tier)
                     : true;
                   const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
@@ -244,16 +271,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                       key={item.href}
                       href={hasAccess ? item.href : "/pengaturan/langganan"}
                       className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                        "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all",
                         isActive
-                          ? "bg-primary/10 text-primary font-medium"
+                          ? "bg-primary text-primary-foreground font-semibold shadow-sm"
                           : hasAccess
-                          ? "text-gray-700 hover:bg-gray-100"
+                          ? "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                           : "text-gray-400 hover:bg-gray-50"
                       )}
                       onClick={() => onClose()}
                     >
-                      <item.icon className="h-4 w-4 flex-shrink-0" />
+                      <item.icon className={cn("h-4 w-4 flex-shrink-0", isActive ? "text-primary-foreground" : "")} />
                       <span className="flex-1">{item.label}</span>
                       {!hasAccess && (
                         <Lock className="h-3 w-3 text-gray-400" />

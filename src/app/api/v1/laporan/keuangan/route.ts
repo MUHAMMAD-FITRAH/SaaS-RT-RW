@@ -12,14 +12,14 @@ export async function GET(req: NextRequest) {
     }
 
     const tenantId = session.user.tenantId;
-    if (!tenantId) return errorResponse("Tenant tidak ditemukan", 400);
+    if (!tenantId && session.user.role !== "SUPER_ADMIN") return errorResponse("Tenant tidak ditemukan", 400);
 
     const url = new URL(req.url);
     const tahun = parseInt(url.searchParams.get("tahun") || String(new Date().getFullYear()));
 
     // Kas summary
     const kasTransactions = await prisma.kasTransaction.findMany({
-      where: { tenantId, tanggal: { gte: new Date(tahun, 0, 1), lt: new Date(tahun + 1, 0, 1) } },
+      where: { ...(tenantId ? { tenantId } : {}), tanggal: { gte: new Date(tahun, 0, 1), lt: new Date(tahun + 1, 0, 1) } },
       orderBy: { tanggal: "desc" },
     });
 
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
     // Iuran summary per month
     const iuranPayments = await prisma.iuranPayment.findMany({
-      where: { tenantId, tahun },
+      where: { ...(tenantId ? { tenantId } : {}), tahun },
       include: { iuranType: true },
     });
 

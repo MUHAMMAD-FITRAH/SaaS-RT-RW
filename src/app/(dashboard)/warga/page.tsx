@@ -2,12 +2,13 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Eye, Edit, ChevronLeft, ChevronRight } from "lucide-react";
-import { formatDateShort } from "@/lib/utils";
 
 interface Warga {
   id: string;
@@ -18,6 +19,7 @@ interface Warga {
   pekerjaan: string | null;
   nomorHP: string | null;
   tanggalLahir: string | null;
+  foto: string | null;
   keluarga: {
     nomorKK: string;
     kepalaKeluarga: string;
@@ -25,7 +27,27 @@ interface Warga {
   } | null;
 }
 
+function getInitials(name: string) {
+  return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+}
+
+function WargaAvatar({ foto, nama, jenisKelamin }: { foto: string | null; nama: string; jenisKelamin: string | null }) {
+  const bgColor = jenisKelamin === "LAKI_LAKI" ? "bg-blue-100 text-blue-700" : "bg-pink-100 text-pink-700";
+  if (foto) {
+    return (
+      <Image src={foto} alt={nama} width={36} height={36}
+        className="w-9 h-9 rounded-full object-cover shrink-0" />
+    );
+  }
+  return (
+    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${bgColor}`}>
+      {getInitials(nama)}
+    </div>
+  );
+}
+
 export default function WargaPage() {
+  const router = useRouter();
   const [wargaList, setWargaList] = useState<Warga[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -139,14 +161,21 @@ export default function WargaPage() {
                   </thead>
                   <tbody>
                     {wargaList.map((w) => (
-                      <tr key={w.id} className="border-b hover:bg-gray-50">
+                      <tr
+                        key={w.id}
+                        className="border-b hover:bg-blue-50 cursor-pointer transition-colors"
+                        onClick={() => router.push(`/warga/${w.id}`)}
+                      >
                         <td className="py-3 px-2">
-                          <div>
-                            <p className="font-medium">{w.namaLengkap}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {w.jenisKelamin === "LAKI_LAKI" ? "L" : "P"}
-                              {w.pekerjaan ? ` - ${w.pekerjaan}` : ""}
-                            </p>
+                          <div className="flex items-center gap-2.5">
+                            <WargaAvatar foto={w.foto} nama={w.namaLengkap} jenisKelamin={w.jenisKelamin} />
+                            <div>
+                              <p className="font-medium">{w.namaLengkap}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {w.jenisKelamin === "LAKI_LAKI" ? "L" : "P"}
+                                {w.pekerjaan ? ` · ${w.pekerjaan}` : ""}
+                              </p>
+                            </div>
                           </div>
                         </td>
                         <td className="py-3 px-2 hidden md:table-cell font-mono text-xs">
@@ -160,7 +189,7 @@ export default function WargaPage() {
                         <td className="py-3 px-2 hidden sm:table-cell">
                           {statusBadge(w.statusAktif)}
                         </td>
-                        <td className="py-3 px-2">
+                        <td className="py-3 px-2" onClick={(e) => e.stopPropagation()}>
                           <div className="flex gap-1">
                             <Link href={`/warga/${w.id}`}>
                               <Button variant="ghost" size="icon" className="h-8 w-8">

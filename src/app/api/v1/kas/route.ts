@@ -8,6 +8,7 @@ import {
   getPaginationParams,
   paginatedResponse,
   AuthError,
+  resolveTenantId,
 } from "@/server/middleware/api-utils";
 import { UserRole } from "@prisma/client";
 
@@ -19,14 +20,14 @@ export async function GET(req: NextRequest) {
       throw new AuthError("Forbidden", 403);
     }
     const tenantId = session.user.tenantId;
-    if (!tenantId) return errorResponse("Tenant not found", 400);
+    if (!tenantId && session.user.role !== "SUPER_ADMIN") return errorResponse("Tenant not found", 400);
 
     const { page, limit, skip, search } = getPaginationParams(req);
     const url = new URL(req.url);
     const jenis = url.searchParams.get("jenis") || undefined;
     const kategori = url.searchParams.get("kategori") || undefined;
 
-    const where: Record<string, unknown> = { tenantId };
+    const where: Record<string, unknown> = tenantId ? { tenantId } : {};
     if (jenis) where.jenis = jenis;
     if (kategori) where.kategori = { contains: kategori, mode: "insensitive" };
     if (search) {
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
       prisma.kasTransaction.count({ where }),
       prisma.kasTransaction.groupBy({
         by: ["jenis"],
-        where: { tenantId },
+        where: tenantId ? { tenantId } : {},
         _sum: { jumlah: true },
       }),
     ]);
@@ -86,10 +87,10 @@ export async function POST(req: NextRequest) {
     if (role !== "RT_ADMIN" && role !== "SUPER_ADMIN") {
       throw new AuthError("Forbidden", 403);
     }
-    const tenantId = session.user.tenantId;
+    const body = await req.json();
+    const tenantId = await resolveTenantId(session, body.tenantId);
     if (!tenantId) return errorResponse("Tenant not found", 400);
 
-    const body = await req.json();
     const { jenis, kategori, keterangan, jumlah, tanggal, buktiUrl } = body;
 
     if (!jenis || !kategori || !keterangan || !jumlah) {
@@ -126,16 +127,16 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const session = await requireAuth();
-    const tenantId = session.user.tenantId;
+    const body = await req.json();
+    const tenantId = await resolveTenantId(session, body.tenantId);
     if (!tenantId) return errorResponse("Tenant not found", 400);
 
-    const body = await req.json();
     const { id, tanggal, jenis, kategori, keterangan, jumlah, buktiUrl } = body;
 
     if (!id) return errorResponse("ID transaksi harus diisi", 400);
 
     const existing = await prisma.kasTransaction.findFirst({
-      where: { id, tenantId },
+      where: { id, ...(tenantId ? { tenantId } : {}) },
     });
     if (!existing) return errorResponse("Transaksi tidak ditemukan", 404);
 
@@ -171,7 +172,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const session = await requireAuth();
-    const tenantId = session.user.tenantId;
+    const tenantId = await resolveTenantId(session);
     if (!tenantId) return errorResponse("Tenant not found", 400);
 
     const url = new URL(req.url);
@@ -179,7 +180,7 @@ export async function DELETE(req: NextRequest) {
     if (!id) return errorResponse("ID transaksi harus diisi", 400);
 
     const deleted = await prisma.kasTransaction.deleteMany({
-      where: { id, tenantId },
+      where: { id, ...(tenantId ? { tenantId } : {}) },
     });
 
     if (deleted.count === 0) return errorResponse("Transaksi tidak ditemukan", 404);

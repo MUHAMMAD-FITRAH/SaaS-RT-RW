@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { LogIn, Server, Shield, Building2, Users } from "lucide-react";
+import { LogIn, Server, Shield, Building2, Users, ArrowLeft } from "lucide-react";
 
 const DEMO_ACCOUNTS = [
   {
@@ -84,6 +84,15 @@ export default function LoginPage() {
 
   return (
     <div className="space-y-4 w-full max-w-md">
+      {/* Back to landing page */}
+      <Link
+        href="/"
+        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
+      >
+        <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
+        Kembali ke Beranda
+      </Link>
+
       <Card>
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">

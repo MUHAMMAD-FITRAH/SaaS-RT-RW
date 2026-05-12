@@ -137,10 +137,10 @@ function PembangunanContent() {
 
   async function handleStatusChange(id: string, newStatus: string) {
     try {
-      const res = await fetch(`/api/v1/pembangunan/${id}`, {
+      const res = await fetch("/api/v1/pembangunan", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ id, status: newStatus }),
       });
       const data = await res.json();
       if (data.success) {

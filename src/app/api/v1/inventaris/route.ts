@@ -7,17 +7,18 @@ import {
   handleApiError,
   getPaginationParams,
   paginatedResponse,
+  resolveTenantId,
 } from "@/server/middleware/api-utils";
 
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth();
     const tenantId = session.user.tenantId;
-    if (!tenantId) return errorResponse("Tenant tidak ditemukan", 400);
+    if (!tenantId && session.user.role !== "SUPER_ADMIN") return errorResponse("Tenant tidak ditemukan", 400);
 
     const { page, limit, skip, search } = getPaginationParams(req);
 
-    const where: Record<string, unknown> = { tenantId };
+    const where: Record<string, unknown> = tenantId ? { tenantId } : {};
 
     if (search) {
       where.OR = [
@@ -45,10 +46,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth();
-    const tenantId = session.user.tenantId;
-    if (!tenantId) return errorResponse("Tenant tidak ditemukan", 400);
-
     const body = await req.json();
+    const tenantId = await resolveTenantId(session, body.tenantId);
+    if (!tenantId) return errorResponse("Tenant tidak ditemukan", 400);
     const { namaBarang, kategori, jumlah, kondisi, lokasi, tanggalPerolehan, nilaiPerolehan, catatan, foto } = body;
 
     if (!namaBarang) {

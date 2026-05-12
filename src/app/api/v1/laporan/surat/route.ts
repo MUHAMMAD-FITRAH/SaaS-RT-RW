@@ -12,13 +12,13 @@ export async function GET(req: NextRequest) {
     }
 
     const tenantId = session.user.tenantId;
-    if (!tenantId) return errorResponse("Tenant tidak ditemukan", 400);
+    if (!tenantId && session.user.role !== "SUPER_ADMIN") return errorResponse("Tenant tidak ditemukan", 400);
 
     const { page, limit, skip, search } = getPaginationParams(req);
     const url = new URL(req.url);
     const status = url.searchParams.get("status");
 
-    const where: Record<string, unknown> = { tenantId };
+    const where: Record<string, unknown> = tenantId ? { tenantId } : {};
     if (status) where.status = status;
     if (search) {
       where.OR = [

@@ -16,11 +16,13 @@ export function RoleGuard({ allowedRoles, children, fallback }: RoleGuardProps) 
   const router = useRouter();
   const role = session?.user?.role as UserRole | undefined;
 
+  const hasAccess = role === "SUPER_ADMIN" || (role && allowedRoles.includes(role));
+
   useEffect(() => {
-    if (status === "authenticated" && role && !allowedRoles.includes(role)) {
+    if (status === "authenticated" && role && !hasAccess) {
       router.replace("/dashboard");
     }
-  }, [status, role, allowedRoles, router]);
+  }, [status, role, hasAccess, router]);
 
   if (status === "loading") {
     return (
@@ -30,7 +32,7 @@ export function RoleGuard({ allowedRoles, children, fallback }: RoleGuardProps) 
     );
   }
 
-  if (!role || !allowedRoles.includes(role)) {
+  if (!role || !hasAccess) {
     return fallback ?? (
       <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
         <p className="text-lg font-semibold text-red-600">Akses Ditolak</p>

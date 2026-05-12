@@ -7,6 +7,7 @@ import {
   paginatedResponse,
   handleApiError,
   getPaginationParams,
+  resolveTenantId,
 } from "@/server/middleware/api-utils";
 
 function generateSlug(text: string): string {
@@ -22,19 +23,37 @@ export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth();
     const tenantId = session.user.tenantId;
-    if (!tenantId) return errorResponse("Tenant not found", 400);
+    if (!tenantId && session.user.role !== "SUPER_ADMIN") return errorResponse("Tenant not found", 400);
 
     const { page, limit, skip, search } = getPaginationParams(req);
-    const url = new URL(req.url);
+    const url         = new URL(req.url);
     const isPublished = url.searchParams.get("isPublished");
+    const kategori    = url.searchParams.get("kategori") || undefined;
+    const myOnly      = url.searchParams.get("my") === "1";
 
-    const where: Record<string, unknown> = { tenantId };
-    if (isPublished !== null && isPublished !== "") {
+    const where: Record<string, unknown> = tenantId ? { tenantId } : {};
+
+    // Residents only see published by default (unless they request their own)
+    if (session.user.role === "RESIDENT" && !myOnly) {
+      where.isPublished = true;
+    } else if (isPublished !== null && isPublished !== "") {
       where.isPublished = isPublished === "true";
     }
+
+    if (kategori) where.kategori = kategori;
+
+    if (myOnly && session.user.role === "RESIDENT") {
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        include: { warga: { select: { id: true } } },
+      });
+      if (user?.warga) where.wargaId = user.warga.id;
+    }
+
     if (search) {
       where.OR = [
-        { judul: { contains: search, mode: "insensitive" } },
+        { judul:    { contains: search, mode: "insensitive" } },
+        { ringkasan: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -43,7 +62,10 @@ export async function GET(req: NextRequest) {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+        include: {
+          warga: { select: { id: true, namaLengkap: true } },
+        },
       }),
       prisma.berita.count({ where }),
     ]);
@@ -57,30 +79,47 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth();
-    const tenantId = session.user.tenantId;
+    const body = await req.json();
+    const tenantId = await resolveTenantId(session, body.tenantId);
     if (!tenantId) return errorResponse("Tenant not found", 400);
 
-    const body = await req.json();
+    const { judul, konten, ringkasan, gambar, kategori, penulis, isPublished } = body;
 
-    if (!body.judul || !body.konten || !body.penulis) {
-      return errorResponse("Judul, konten, dan penulis wajib diisi", 422);
+    if (!judul || !konten) {
+      return errorResponse("Judul dan konten wajib diisi", 422);
     }
 
-    const baseSlug = generateSlug(body.judul);
-    const timestamp = Date.now().toString(36);
-    const slug = `${baseSlug}-${timestamp}`;
+    const baseSlug = generateSlug(judul);
+    const slug     = `${baseSlug}-${Date.now().toString(36)}`;
+
+    // Residents submit as draft (isPublished: false always)
+    const publish = session.user.role === "RESIDENT" ? false : (isPublished ?? false);
+
+    // Resolve wargaId
+    let wargaId = body.wargaId ?? null;
+    if (!wargaId && session.user.role === "RESIDENT") {
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        include: { warga: { select: { id: true } } },
+      });
+      wargaId = user?.warga?.id ?? null;
+    }
+
+    const resolvedPenulis = penulis || session.user.name || "Anonim";
 
     const berita = await prisma.berita.create({
       data: {
         tenantId,
-        judul: body.judul,
+        wargaId:     wargaId || null,
+        judul,
         slug,
-        konten: body.konten,
-        ringkasan: body.ringkasan || null,
-        gambar: body.gambar || null,
-        penulis: body.penulis,
-        isPublished: body.isPublished ?? false,
-        publishedAt: body.isPublished ? new Date() : null,
+        konten,
+        ringkasan:   ringkasan || null,
+        gambar:      gambar    || null,
+        kategori:    kategori  || null,
+        penulis:     resolvedPenulis,
+        isPublished: publish,
+        publishedAt: publish ? new Date() : null,
       },
     });
 

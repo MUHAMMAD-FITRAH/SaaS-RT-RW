@@ -1,5 +1,5 @@
 import prisma from "@/lib/db";
-import { requireAuth, successResponse, errorResponse, handleApiError, AuthError } from "@/server/middleware/api-utils";
+import { requireAuth, successResponse, errorResponse, handleApiError, AuthError, resolveTenantId } from "@/server/middleware/api-utils";
 import { UserRole } from "@prisma/client";
 
 export async function PATCH(
@@ -13,10 +13,10 @@ export async function PATCH(
       throw new AuthError("Forbidden", 403);
     }
 
-    const tenantId = session.user.tenantId;
+    const body = await req.json();
+    const tenantId = await resolveTenantId(session, body.tenantId);
     if (!tenantId) return errorResponse("Tenant tidak ditemukan", 400);
 
-    const body = await req.json();
     const { status, catatan } = body;
 
     if (!status || !["DIPROSES", "DISETUJUI", "DITOLAK"].includes(status)) {
@@ -24,7 +24,7 @@ export async function PATCH(
     }
 
     const surat = await prisma.surat.findFirst({
-      where: { id: params.id, tenantId },
+      where: { id: params.id, ...(tenantId ? { tenantId } : {}) },
     });
 
     if (!surat) return errorResponse("Surat tidak ditemukan", 404);

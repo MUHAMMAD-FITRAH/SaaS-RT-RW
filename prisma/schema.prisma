@@ -27,8 +27,9 @@ model Tenant {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  subscription    Subscription?
-  users           User[]
+  subscription        Subscription?
+  paymentTransactions PaymentTransaction[]
+  users               User[]
   rumah           Rumah[]
   warga           Warga[]
   keluarga        Keluarga[]
@@ -44,9 +45,12 @@ model Tenant {
   bansosRecipients BansosRecipient[]
   siskamling      Siskamling[]
   keluhan         Keluhan[]
+  pengajuan       Pengajuan[]
   inventaris      Inventaris[]
   organisasi      Organisasi[]
   usahaWarga      UsahaWarga[]
+  iklan           IklanUsaha[]
+  ppobOrders      PPOBOrder[]
   pembangunan     Pembangunan[]
   posSecurityLogs PosSecurityLog[]
   tataTertib      TataTertib[]
@@ -71,11 +75,27 @@ enum SubscriptionStatus {
   TRIALING
 }
 
+enum PaymentProvider {
+  STRIPE
+  MIDTRANS
+  XENDIT
+  MANUAL
+}
+
+enum PaymentTransactionStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
 model Subscription {
   id                   String             @id @default(cuid())
   tenantId             String             @unique
   tier                 SubscriptionTier   @default(TIER_A)
   status               SubscriptionStatus @default(TRIALING)
+  paymentProvider      PaymentProvider    @default(MANUAL)
   stripeCustomerId     String?            @unique
   stripeSubscriptionId String?            @unique
   stripePriceId        String?
@@ -89,6 +109,32 @@ model Subscription {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
+model PaymentTransaction {
+  id         String                   @id @default(cuid())
+  tenantId   String
+  orderId    String                   @unique
+  provider   PaymentProvider
+  externalId String?                  // Provider's transaction/invoice ID
+  amount     Decimal                  @db.Decimal(15, 2)
+  currency   String                   @default("IDR")
+  tier       SubscriptionTier
+  status     PaymentTransactionStatus @default(PENDING)
+  snapToken  String?                  // Midtrans Snap token
+  paymentUrl String?
+  paidAt     DateTime?
+  expiredAt  DateTime?
+  metadata   Json?
+  createdAt  DateTime                 @default(now())
+  updatedAt  DateTime                 @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([orderId])
+  @@index([externalId])
+  @@index([provider, status])
+}
+
 enum UserRole {
   SUPER_ADMIN
   RT_ADMIN
@@ -99,6 +145,7 @@ enum UserRole {
 model User {
   id            String    @id @default(cuid())
   tenantId      String?
+  keluargaId    String?   // Link ke KK — semua anggota KK bisa pakai akun yang sama
   email         String    @unique
   emailVerified DateTime?
   password      String
@@ -111,11 +158,13 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  warga  Warga?  @relation("UserWarga")
+  tenant   Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  keluarga Keluarga? @relation("UserKeluarga", fields: [keluargaId], references: [id])
+  warga    Warga?    @relation("UserWarga")
 
   @@index([tenantId])
   @@index([email])
+  @@index([keluargaId])
 }
 
 // ==================== RESIDENTIAL DATA ====================
@@ -172,6 +221,7 @@ model Keluarga {
   tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   rumah   Rumah   @relation(fields: [rumahId], references: [id])
   anggota Warga[]
+  users   User[]  @relation("UserKeluarga")
 
   @@unique([tenantId, nomorKK])
   @@index([tenantId])
@@ -251,6 +301,10 @@ model Warga {
   iuranPayments    IuranPayment[]
   bansosRecipients BansosRecipient[]
   suratList        Surat[]           @relation("SuratWarga")
+  keluhan          Keluhan[]         @relation("KeluhanWarga")
+  pengajuan        Pengajuan[]       @relation("PengajuanWarga")
+  berita           Berita[]          @relation("BeritaWarga")
+  ppobOrders       PPOBOrder[]       @relation("PPOBWarga")
   vaksinasi        VaksinasiData[]
 
   @@unique([tenantId, nik])
@@ -385,17 +439,20 @@ enum PeriodeIuran {
   BULANAN
   TAHUNAN
   INSIDENTAL
+  DONASI
 }
 
 model IuranType {
-  id        String       @id @default(cuid())
-  tenantId  String
-  nama      String
-  jumlah    Decimal      @db.Decimal(15, 2)
-  periode   PeriodeIuran @default(BULANAN)
-  isActive  Boolean      @default(true)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id                String       @id @default(cuid())
+  tenantId          String
+  nama              String
+  jumlah            Decimal      @db.Decimal(15, 2)
+  periode           PeriodeIuran @default(BULANAN)
+  isActive          Boolean      @default(true)
+  deskripsi         String?
+  isJumlahFleksibel Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   payments IuranPayment[]
@@ -459,18 +516,21 @@ model Agenda {
 model Berita {
   id          String    @id @default(cuid())
   tenantId    String
+  wargaId     String?
   judul       String
   slug        String
   konten      String
   ringkasan   String?
   gambar      String?
+  kategori    String?
   penulis     String
   isPublished Boolean   @default(false)
   publishedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warga  Warga?  @relation("BeritaWarga", fields: [wargaId], references: [id])
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -546,18 +606,54 @@ enum StatusKeluhan {
 model Keluhan {
   id             String        @id @default(cuid())
   tenantId       String
+  wargaId        String?
   pengirim       String
   email          String?
   kategori       String
   judul          String
   isi            String
+  fotoUrl        String?
+  latitude       Float?
+  longitude      Float?
+  isUrgent       Boolean       @default(false)
   status         StatusKeluhan @default(BARU)
   tanggapan      String?
   tanggalTanggap DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warga  Warga?  @relation("KeluhanWarga", fields: [wargaId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, isUrgent])
+}
+
+// ─── Pengajuan ────────────────────────────────────────────────────────────────
+
+enum StatusPengajuan {
+  MENUNGGU
+  DIPROSES
+  DISETUJUI
+  DITOLAK
+}
+
+model Pengajuan {
+  id             String          @id @default(cuid())
+  tenantId       String
+  wargaId        String?
+  pengirim       String
+  kategori       String
+  judul          String
+  isi            String
+  status         StatusPengajuan @default(MENUNGGU)
+  tanggapan      String?
+  tanggalTanggap DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warga  Warga?  @relation("PengajuanWarga", fields: [wargaId], references: [id])
 
   @@index([tenantId])
 }
@@ -603,23 +699,26 @@ model Organisasi {
 // ==================== TIER B+ FEATURES ====================
 
 model UsahaWarga {
-  id        String   @id @default(cuid())
-  tenantId  String
-  namaUsaha String
-  pemilik   String
-  jenis     String
-  alamat    String?
-  nomorHP   String?
-  deskripsi String?
-  foto      String?
-  isActive  Boolean  @default(true)
-  products  Product[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  tenantId      String
+  namaUsaha     String
+  pemilik       String
+  jenis         String
+  alamat        String?
+  nomorHP       String?
+  deskripsi     String?
+  foto          String?
+  isActive      Boolean  @default(true)
+  isMarketplace Boolean  @default(false)
+  products      Product[]
+  iklan         IklanUsaha[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
+  @@index([isMarketplace, isActive])
 }
 
 model Product {
@@ -629,11 +728,88 @@ model Product {
   deskripsi    String?
   harga        Decimal  @db.Decimal(15, 2)
   foto         String?
+  kategori     String?
+  stok         Int?
   isAvailable  Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   usahaWarga UsahaWarga @relation(fields: [usahaWargaId], references: [id], onDelete: Cascade)
+
+  @@index([usahaWargaId])
+}
+
+// ─── Iklan / Ad Slots ─────────────────────────────────────────────────────────
+
+enum StatusIklan {
+  MENUNGGU_BAYAR
+  AKTIF
+  KADALUARSA
+  DITOLAK
+}
+
+model IklanUsaha {
+  id              String     @id @default(cuid())
+  tenantId        String
+  usahaWargaId    String
+  durasi          Int        // days: 7 / 14 / 30
+  harga           Decimal    @db.Decimal(15, 2)
+  status          StatusIklan @default(MENUNGGU_BAYAR)
+  mulaiTayang     DateTime?
+  selesaiTayang   DateTime?
+  buktiPembayaran String?
+  catatan         String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usahaWarga UsahaWarga @relation(fields: [usahaWargaId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+// ─── PPOB Orders ─────────────────────────────────────────────────────────────
+
+enum JenisPPOB {
+  PLN
+  PDAM
+  PULSA
+  BPJS_KESEHATAN
+  BPJS_KETENAGAKERJAAN
+  INTERNET
+  TV_KABEL
+  LAINNYA
+}
+
+enum StatusPPOB {
+  MENUNGGU
+  DIPROSES
+  BERHASIL
+  GAGAL
+}
+
+model PPOBOrder {
+  id           String    @id @default(cuid())
+  tenantId     String
+  wargaId      String?
+  pemohon      String
+  jenis        JenisPPOB
+  nomorTujuan  String
+  jumlah       Decimal   @db.Decimal(15, 2)
+  adminFee     Decimal   @db.Decimal(15, 2) @default(0)
+  total        Decimal   @db.Decimal(15, 2)
+  status       StatusPPOB @default(MENUNGGU)
+  catatan      String?
+  buktiUrl     String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warga  Warga? @relation("PPOBWarga", fields: [wargaId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, status])
 }
 
 enum StatusPembangunan {

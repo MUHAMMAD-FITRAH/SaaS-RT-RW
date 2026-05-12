@@ -32,4 +32,26 @@ export interface DashboardStats {
   saldoKas: number;
   iuranTerbayar: number;
   iuranTunggakan: number;
+  // Super Admin extra fields
+  totalTenants?: number;
+  activeTenants?: number;
+  totalUsers?: number;
+  totalSurat?: number;
+  suratPending?: number;
+  totalKeluhan?: number;
+  keluhanPending?: number;
+  tierBreakdown?: Record<string, number>;
+  recentTenants?: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    rtNumber: string;
+    rwNumber: string;
+    isActive: boolean;
+    tier: string;
+    status: string;
+    userCount: number;
+    wargaCount: number;
+    createdAt: string;
+  }>;
 }

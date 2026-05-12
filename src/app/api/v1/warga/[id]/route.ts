@@ -17,7 +17,7 @@ export async function GET(
     const tenantId = session.user.tenantId;
 
     const warga = await prisma.warga.findFirst({
-      where: { id: params.id, tenantId: tenantId! },
+      where: { id: params.id, ...(tenantId ? { tenantId } : {}) },
       include: {
         keluarga: {
           include: { rumah: true },
@@ -55,7 +55,7 @@ export async function PATCH(
     }
 
     const existing = await prisma.warga.findFirst({
-      where: { id: params.id, tenantId: tenantId! },
+      where: { id: params.id, ...(tenantId ? { tenantId } : {}) },
     });
 
     if (!existing) return errorResponse("Warga tidak ditemukan", 404);
@@ -88,7 +88,7 @@ export async function DELETE(
     const tenantId = session.user.tenantId;
 
     const existing = await prisma.warga.findFirst({
-      where: { id: params.id, tenantId: tenantId! },
+      where: { id: params.id, ...(tenantId ? { tenantId } : {}) },
     });
 
     if (!existing) return errorResponse("Warga tidak ditemukan", 404);

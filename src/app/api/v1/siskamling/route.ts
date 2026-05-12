@@ -7,17 +7,18 @@ import {
   paginatedResponse,
   handleApiError,
   getPaginationParams,
+  resolveTenantId,
 } from "@/server/middleware/api-utils";
 
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth();
     const tenantId = session.user.tenantId;
-    if (!tenantId) return errorResponse("Tenant not found", 400);
+    if (!tenantId && session.user.role !== "SUPER_ADMIN") return errorResponse("Tenant not found", 400);
 
     const { page, limit, skip, search } = getPaginationParams(req);
 
-    const where: Record<string, unknown> = { tenantId };
+    const where: Record<string, unknown> = tenantId ? { tenantId } : {};
     if (search) {
       where.OR = [
         { lokasi: { contains: search, mode: "insensitive" } },
@@ -44,10 +45,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth();
-    const tenantId = session.user.tenantId;
-    if (!tenantId) return errorResponse("Tenant not found", 400);
-
     const body = await req.json();
+    const tenantId = await resolveTenantId(session, body.tenantId);
+    if (!tenantId) return errorResponse("Tenant not found", 400);
 
     if (!body.tanggal || !body.petugas || body.petugas.length === 0) {
       return errorResponse("Tanggal dan petugas wajib diisi", 422);

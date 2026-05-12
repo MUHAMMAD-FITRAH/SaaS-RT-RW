@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Search, Users, ChevronLeft, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface KeluargaData {
   id: string;
@@ -30,6 +31,7 @@ export default function KeluargaPage() {
   const [showForm, setShowForm] = useState(false);
   const [rumahOptions, setRumahOptions] = useState<RumahOption[]>([]);
   const [formData, setFormData] = useState({ nomorKK: "", kepalaKeluarga: "", rumahId: "" });
+  const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -134,7 +136,7 @@ export default function KeluargaPage() {
                   </tr></thead>
                   <tbody>
                     {keluargaList.map((kk) => (
-                      <tr key={kk.id} className="border-b hover:bg-gray-50">
+                      <tr key={kk.id} className="border-b hover:bg-blue-50 cursor-pointer" onClick={() => router.push(`/keluarga/${kk.id}`)}>
                         <td className="py-3 px-2 font-mono text-xs">{kk.nomorKK}</td>
                         <td className="py-3 px-2 font-medium">{kk.kepalaKeluarga}</td>
                         <td className="py-3 px-2 hidden md:table-cell text-muted-foreground">

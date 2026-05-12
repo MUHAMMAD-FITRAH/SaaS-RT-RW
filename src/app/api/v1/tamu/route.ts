@@ -7,20 +7,21 @@ import {
   handleApiError,
   getPaginationParams,
   paginatedResponse,
+  resolveTenantId,
 } from "@/server/middleware/api-utils";
 
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth();
     const tenantId = session.user.tenantId;
-    if (!tenantId) return errorResponse("Tenant tidak ditemukan", 400);
+    if (!tenantId && session.user.role !== "SUPER_ADMIN") return errorResponse("Tenant tidak ditemukan", 400);
 
     const { page, limit, skip, search } = getPaginationParams(req);
     const url = new URL(req.url);
     const dateFrom = url.searchParams.get("dateFrom");
     const dateTo = url.searchParams.get("dateTo");
 
-    const where: Record<string, unknown> = { tenantId };
+    const where: Record<string, unknown> = tenantId ? { tenantId } : {};
 
     if (search) {
       where.OR = [
@@ -55,10 +56,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth();
-    const tenantId = session.user.tenantId;
+    const body = await req.json();
+    const tenantId = await resolveTenantId(session, body.tenantId);
     if (!tenantId) return errorResponse("Tenant tidak ditemukan", 400);
 
-    const body = await req.json();
     const { namaLengkap, nik, alamatAsal, tujuan, wargaDikunjungi, nomorHP, nomorKendaraan, foto, catatan } = body;
 
     if (!namaLengkap || !alamatAsal || !tujuan || !wargaDikunjungi) {
@@ -89,16 +90,16 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const session = await requireAuth();
-    const tenantId = session.user.tenantId;
+    const body = await req.json();
+    const tenantId = await resolveTenantId(session, body.tenantId);
     if (!tenantId) return errorResponse("Tenant tidak ditemukan", 400);
 
-    const body = await req.json();
     const { id } = body;
 
     if (!id) return errorResponse("ID tamu harus diisi", 400);
 
     const tamu = await prisma.tamu.updateMany({
-      where: { id, tenantId },
+      where: { id, ...(tenantId ? { tenantId } : {}) },
       data: { waktuPulang: new Date() },
     });
 

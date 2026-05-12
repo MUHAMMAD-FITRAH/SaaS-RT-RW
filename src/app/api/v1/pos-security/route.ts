@@ -7,6 +7,7 @@ import {
   handleApiError,
   getPaginationParams,
   paginatedResponse,
+  resolveTenantId,
 } from "@/server/middleware/api-utils";
 import { Feature } from "@/lib/features";
 
@@ -14,14 +15,14 @@ export async function GET(req: NextRequest) {
   try {
     const session = await requireFeature(Feature.POS_SECURITY);
     const tenantId = session.user.tenantId;
-    if (!tenantId) return errorResponse("Tenant not found", 400);
+    if (!tenantId && session.user.role !== "SUPER_ADMIN") return errorResponse("Tenant not found", 400);
 
     const { page, limit, skip, search } = getPaginationParams(req);
     const url = new URL(req.url);
     const from = url.searchParams.get("from");
     const to = url.searchParams.get("to");
 
-    const where: Record<string, unknown> = { tenantId };
+    const where: Record<string, unknown> = tenantId ? { tenantId } : {};
 
     if (from || to) {
       const tanggalFilter: Record<string, unknown> = {};
@@ -57,10 +58,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireFeature(Feature.POS_SECURITY);
-    const tenantId = session.user.tenantId;
+    const body = await req.json();
+    const tenantId = await resolveTenantId(session, body.tenantId);
     if (!tenantId) return errorResponse("Tenant not found", 400);
 
-    const body = await req.json();
     const {
       tanggal,
       petugas,
@@ -101,7 +102,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const session = await requireFeature(Feature.POS_SECURITY);
-    const tenantId = session.user.tenantId;
+    const tenantId = await resolveTenantId(session);
     if (!tenantId) return errorResponse("Tenant not found", 400);
 
     const url = new URL(req.url);
@@ -109,7 +110,7 @@ export async function DELETE(req: NextRequest) {
     if (!id) return errorResponse("ID log harus diisi", 400);
 
     const deleted = await prisma.posSecurityLog.deleteMany({
-      where: { id, tenantId },
+      where: { id, ...(tenantId ? { tenantId } : {}) },
     });
 
     if (deleted.count === 0) return errorResponse("Log tidak ditemukan", 404);

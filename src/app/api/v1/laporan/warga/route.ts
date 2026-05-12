@@ -12,22 +12,22 @@ export async function GET() {
     }
 
     const tenantId = session.user.tenantId;
-    if (!tenantId) return errorResponse("Tenant tidak ditemukan", 400);
+    if (!tenantId && session.user.role !== "SUPER_ADMIN") return errorResponse("Tenant tidak ditemukan", 400);
 
     const [
       totalWarga, wargaAktif, wargaPindah, wargaMeninggal,
       totalRumah, totalKeluarga,
       genderStats, agamaStats, pekerjaanStats,
     ] = await Promise.all([
-      prisma.warga.count({ where: { tenantId } }),
-      prisma.warga.count({ where: { tenantId, statusAktif: "AKTIF" } }),
-      prisma.warga.count({ where: { tenantId, statusAktif: "PINDAH" } }),
-      prisma.warga.count({ where: { tenantId, statusAktif: "MENINGGAL" } }),
-      prisma.rumah.count({ where: { tenantId } }),
-      prisma.keluarga.count({ where: { tenantId } }),
-      prisma.warga.groupBy({ by: ["jenisKelamin"], where: { tenantId, statusAktif: "AKTIF" }, _count: true }),
-      prisma.warga.groupBy({ by: ["agama"], where: { tenantId, statusAktif: "AKTIF" }, _count: true }),
-      prisma.warga.groupBy({ by: ["pekerjaan"], where: { tenantId, statusAktif: "AKTIF" }, _count: true }),
+      prisma.warga.count({ where: tenantId ? { tenantId } : {} }),
+      prisma.warga.count({ where: { ...(tenantId ? { tenantId } : {}), statusAktif: "AKTIF" } }),
+      prisma.warga.count({ where: { ...(tenantId ? { tenantId } : {}), statusAktif: "PINDAH" } }),
+      prisma.warga.count({ where: { ...(tenantId ? { tenantId } : {}), statusAktif: "MENINGGAL" } }),
+      prisma.rumah.count({ where: tenantId ? { tenantId } : {} }),
+      prisma.keluarga.count({ where: tenantId ? { tenantId } : {} }),
+      prisma.warga.groupBy({ by: ["jenisKelamin"], where: { ...(tenantId ? { tenantId } : {}), statusAktif: "AKTIF" }, _count: true }),
+      prisma.warga.groupBy({ by: ["agama"], where: { ...(tenantId ? { tenantId } : {}), statusAktif: "AKTIF" }, _count: true }),
+      prisma.warga.groupBy({ by: ["pekerjaan"], where: { ...(tenantId ? { tenantId } : {}), statusAktif: "AKTIF" }, _count: true }),
     ]);
 
     return successResponse({

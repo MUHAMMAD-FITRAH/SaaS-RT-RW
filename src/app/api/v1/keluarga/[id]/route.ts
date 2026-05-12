@@ -16,7 +16,7 @@ export async function GET(
     const tenantId = session.user.tenantId;
 
     const keluarga = await prisma.keluarga.findFirst({
-      where: { id: params.id, tenantId: tenantId! },
+      where: { id: params.id, ...(tenantId ? { tenantId } : {}) },
       include: {
         rumah: true,
         anggota: { orderBy: { namaLengkap: "asc" } },
@@ -39,7 +39,7 @@ export async function PATCH(
     const tenantId = session.user.tenantId;
 
     const existing = await prisma.keluarga.findFirst({
-      where: { id: params.id, tenantId: tenantId! },
+      where: { id: params.id, ...(tenantId ? { tenantId } : {}) },
     });
     if (!existing) return errorResponse("Keluarga tidak ditemukan", 404);
 
@@ -64,7 +64,7 @@ export async function DELETE(
     const tenantId = session.user.tenantId;
 
     const existing = await prisma.keluarga.findFirst({
-      where: { id: params.id, tenantId: tenantId! },
+      where: { id: params.id, ...(tenantId ? { tenantId } : {}) },
     });
     if (!existing) return errorResponse("Keluarga tidak ditemukan", 404);
 

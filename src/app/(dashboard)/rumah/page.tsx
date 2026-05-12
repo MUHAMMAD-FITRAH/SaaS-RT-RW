@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Home, ChevronLeft, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface RumahData {
   id: string;
@@ -19,6 +20,7 @@ interface RumahData {
 }
 
 export default function RumahPage() {
+  const router = useRouter();
   const [rumahList, setRumahList] = useState<RumahData[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -131,7 +133,7 @@ export default function RumahPage() {
                   </tr></thead>
                   <tbody>
                     {rumahList.map((r) => (
-                      <tr key={r.id} className="border-b hover:bg-gray-50">
+                      <tr key={r.id} className="border-b hover:bg-blue-50 cursor-pointer" onClick={() => router.push(`/rumah/${r.id}`)}>
                         <td className="py-3 px-2">
                           <div className="flex items-center gap-2">
                             <Home className="h-4 w-4 text-muted-foreground" />

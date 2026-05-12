@@ -55,6 +55,8 @@ export async function requirePermission(permission: string) {
 
 export async function requireFeature(feature: Feature) {
   const session = await requireAuth();
+  // SUPER_ADMIN bypasses all feature/tier restrictions
+  if (session.user.role === "SUPER_ADMIN") return session;
   if (!canAccess(feature, session.user.tier as SubscriptionTier)) {
     throw new AuthError(
       `Fitur ini tidak tersedia di paket Anda. Silakan upgrade untuk mengakses.`,
@@ -62,6 +64,39 @@ export async function requireFeature(feature: Feature) {
     );
   }
   return session;
+}
+
+/**
+ * Returns tenant filter for Prisma queries.
+ * SUPER_ADMIN gets empty filter (cross-tenant access).
+ * Other roles get { tenantId } scoping.
+ * Returns null if non-admin user has no tenantId.
+ */
+export function getTenantFilter(session: { user: { role: string; tenantId: string | null } }): { tenantId?: string } | null {
+  if (session.user.role === "SUPER_ADMIN") return {};
+  if (!session.user.tenantId) return null;
+  return { tenantId: session.user.tenantId };
+}
+
+/**
+ * Resolves tenantId for mutation operations (POST/PATCH/DELETE).
+ * For SUPER_ADMIN: uses bodyTenantId if provided, otherwise fetches the first tenant.
+ * For other roles: uses session tenantId.
+ * Returns null if no tenantId can be resolved.
+ */
+export async function resolveTenantId(
+  session: { user: { role: string; tenantId: string | null } },
+  bodyTenantId?: string | null
+): Promise<string | null> {
+  if (session.user.tenantId) return session.user.tenantId;
+  if (session.user.role === "SUPER_ADMIN") {
+    if (bodyTenantId) return bodyTenantId;
+    // Auto-select first tenant for SUPER_ADMIN
+    const { default: prisma } = await import("@/lib/db");
+    const firstTenant = await prisma.tenant.findFirst({ select: { id: true } });
+    return firstTenant?.id || null;
+  }
+  return null;
 }
 
 export class AuthError extends Error {
