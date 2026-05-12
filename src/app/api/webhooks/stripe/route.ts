@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { handlePaymentUpdate } from "../midtrans/route";
+import { handlePaymentUpdate } from "@/lib/payment/webhook-helper";
 
 /**
  * Stripe Webhook

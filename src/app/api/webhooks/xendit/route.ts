@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { XenditProvider } from "@/lib/payment/providers/xendit";
-import { handlePaymentUpdate } from "../midtrans/route";
+import { handlePaymentUpdate } from "@/lib/payment/webhook-helper";
 
 /**
  * Xendit Invoice Webhook
