@@ -12,7 +12,7 @@ const VPS = {
 };
 
 const REPO   = "https://github.com/MUHAMMAD-FITRAH/SaaS-RT-RW.git";
-const APPDIR = "/var/www/saas-rt-rw";
+const APPDIR = "/home/idn_project/saas-rt-rw";
 
 // Commands to run on VPS in sequence
 const STEPS = [
