@@ -355,7 +355,7 @@ async function main() {
           nik,
           namaLengkap: a.nama,
           tempatLahir: "Depok",
-          tanggalLahir: date(...a.lahir),
+          tanggalLahir: date(...(a.lahir as [number, number, number])),
           jenisKelamin: a.gender,
           agama: "ISLAM",
           statusPerkawinan: a.status,
@@ -666,7 +666,7 @@ async function main() {
         kategori: b.kategori,
         penulis: b.penulis,
         isPublished: true,
-        publishedAt: date(...b.tgl),
+        publishedAt: date(...(b.tgl as [number, number, number])),
       },
     });
   }
@@ -748,7 +748,7 @@ async function main() {
     await prisma.siskamling.create({
       data: {
         tenantId: tenant.id,
-        tanggal: date(...s.tgl),
+        tanggal: date(...(s.tgl as [number, number, number])),
         shift: s.shift,
         petugas: [...s.petugas],
         lokasi: "Pos Keamanan RT 003",
@@ -847,7 +847,7 @@ async function main() {
         jumlah: inv.jumlah,
         kondisi: inv.kondisi,
         lokasi: inv.lokasi,
-        tanggalPerolehan: date(...inv.perolehan),
+        tanggalPerolehan: date(...(inv.perolehan as [number, number, number])),
         nilaiPerolehan: inv.nilai,
       },
     });
