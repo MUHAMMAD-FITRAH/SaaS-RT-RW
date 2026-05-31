@@ -4,7 +4,7 @@
   "description": "SaaS RT/RW - Neighborhood Management Platform",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && cp .env .next/standalone/.env 2>/dev/null || true",
     "start": "next start",
     "lint": "next lint",
     "db:migrate": "npx prisma migrate dev",

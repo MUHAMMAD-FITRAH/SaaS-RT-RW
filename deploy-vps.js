@@ -40,6 +40,9 @@ const STEPS = [
   // 6. Build Next.js
   `cd ${APPDIR} && npm run build`,
 
+  // 6b. Copy .env into standalone dir so NEXTAUTH_URL & secrets are available at runtime
+  `cp ${APPDIR}/.env ${APPDIR}/.next/standalone/.env`,
+
   // 7. Start / restart with PM2
   `cd ${APPDIR} && pm2 describe saas-rt-rw > /dev/null 2>&1 \
      && pm2 restart saas-rt-rw \
